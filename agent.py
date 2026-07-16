@@ -288,14 +288,48 @@ def find_context_file(filename: str, start_dir: Optional[str] = None) -> Optiona
 
 
 def load_context_files(
-    load_agent_md: bool = False,
+    agent_md: "str | bool | None" = False,
     load_skills_md: bool = False,
 ) -> str:
-    """Return a combined string with AGENT.md / SKILLS.md contents."""
+    """Return a combined string with AGENT.md / SKILLS.md contents.
+
+    *agent_md* can be:
+      - ``False`` / ``None``: do not load AGENT.md
+      - ``True``: search the directory tree for ``AGENT.md``
+      - a non-empty string: treat it as an explicit file path to load
+    """
     parts: list[str] = []
-    for flag, name in [(load_agent_md, "AGENT.md"), (load_skills_md, "SKILLS.md")]:
-        if not flag:
-            continue
+
+    # --- AGENT.md ---
+    if agent_md:
+        if isinstance(agent_md, str):
+            # Explicit filename provided
+            path = Path(agent_md)
+            if path.is_file():
+                try:
+                    content = path.read_text(encoding="utf-8")
+                    parts.append(f"=== AGENT.md ({path}) ===\n{content}")
+                    print(f"[context] Loaded {path}", file=sys.stderr)
+                except OSError as exc:
+                    print(f"[warning] Could not read {path}: {exc}", file=sys.stderr)
+            else:
+                print(f"[warning] AGENT.md file not found: {agent_md}", file=sys.stderr)
+        else:
+            # Boolean True: search directory tree
+            path = find_context_file("AGENT.md")
+            if path:
+                try:
+                    content = path.read_text(encoding="utf-8")
+                    parts.append(f"=== AGENT.md ({path}) ===\n{content}")
+                    print(f"[context] Loaded {path}", file=sys.stderr)
+                except OSError as exc:
+                    print(f"[warning] Could not read {path}: {exc}", file=sys.stderr)
+            else:
+                print("[warning] AGENT.md not found in directory tree", file=sys.stderr)
+
+    # --- SKILLS.md ---
+    if load_skills_md:
+        name = "SKILLS.md"
         path = find_context_file(name)
         if path:
             try:
@@ -306,6 +340,7 @@ def load_context_files(
                 print(f"[warning] Could not read {path}: {exc}", file=sys.stderr)
         else:
             print(f"[warning] {name} not found in directory tree", file=sys.stderr)
+
     return "\n\n".join(parts)
 
 
@@ -329,8 +364,6 @@ def load_files(paths: list[str]) -> str:
 # ---------------------------------------------------------------------------
 # Agentic loop
 # ---------------------------------------------------------------------------
-
-
 def run_agent(
     client: OpenAIClient,
     messages: list[dict],
@@ -478,8 +511,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ctx_group.add_argument(
         "--agent-md",
-        action="store_true",
-        help="Search for AGENT.md in the directory tree and include it.",
+        nargs="?",
+        const=True,
+        default=None,
+        metavar="FILE",
+        help=(
+            "Include an AGENT.md context file. Without a filename, searches the "
+            "directory tree for AGENT.md. With a filename (--agent-md PATH), "
+            "loads that specific file."
+        ),
     )
     ctx_group.add_argument(
         "--skills-md",
@@ -588,7 +628,7 @@ def main() -> None:
     # 3. Load AGENT.md / SKILLS.md
     # ------------------------------------------------------------------
     md_context = load_context_files(
-        load_agent_md=args.agent_md,
+        agent_md=args.agent_md,
         load_skills_md=args.skills_md,
     )
 
