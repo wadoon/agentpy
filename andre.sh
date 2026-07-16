@@ -39,6 +39,6 @@ Do not fabricate facts, references, or mathematical results."
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-exec "${SCRIPT_DIR}/agent-py" \
+exec "${SCRIPT_DIR}/agent.py" \
     --agent-md "${SCRIPT_DIR}/AGENT-Andre.md" \
     "$@"
